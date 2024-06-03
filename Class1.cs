@@ -22,6 +22,43 @@ namespace NTUI
         }
     }
 
+    public class  Position
+    {
+        public int x;
+        public int y;
+        public Position(int x, int y)
+        {
+            this.x = x;
+            this.y = y;
+        }
+
+        public override string ToString()
+        {
+            return $"({x},{y})";
+        }
+        public override bool Equals(object obj)
+        {
+            Position tp = (Position)obj;
+            return tp.x == x && tp.y == y ;
+        }
+    }
+    public class Size2d : Position
+    {
+        public Size2d(int x, int y) : base(x, y) 
+        {
+            this.x = x;
+            this.y = y;
+        }
+        public static Size2d FromPosition(Position p)
+        {
+            return new Size2d(p.x, p.y);
+        }
+        public int GetArea()
+        {
+            return this.x * this.y;
+        }
+    }
+
     public class WriteableCharacter
     {
         private bool isempty;
@@ -55,11 +92,11 @@ namespace NTUI
         {
             return character;
         }
-        public void PrintAt(int x,int y)
+        public void PrintAt(Position p)
         {
             ConsoleColor oldbg = Console.BackgroundColor;
             ConsoleColor oldfg = Console.ForegroundColor;
-            Console.CursorLeft = x; Console.CursorTop = y;
+            Console.CursorLeft = p.x; Console.CursorTop = p.y;
             Console.BackgroundColor = BackgroundColour;
             Console.ForegroundColor = ForegroundColour;
             Console.Write(GetChar());
@@ -74,8 +111,11 @@ namespace NTUI
     public class ConsoleArray
     {
         private WriteableCharacter[][] raw;
-        public ConsoleArray (int xsize, int ysize)
+        public Size2d Size;
+        public ConsoleArray (Size2d size)
         {
+            this.Size = size;
+            int xsize = size.x; int ysize = size.y;
             raw = new WriteableCharacter[xsize][];
             for (int x = 0; x < xsize; x++)
             {
@@ -90,23 +130,33 @@ namespace NTUI
         {
             return raw[x][y];
         }
+        public WriteableCharacter Get(Position p)
+        {
+            return Get(p.x,p.y);
+        }
         public void Set(int x,int y,WriteableCharacter d) { raw[x][y] = d;}
+        public void Set(Position p, WriteableCharacter d)
+        {
+            Set(p.x,p.y,d);
+        }
     }
 
     public class ConsoleScreen
     {
         private ConsoleArray RawScreen;
-        public ConsoleScreen(int xsize, int ysize)
+
+        public ConsoleScreen(Size2d s)
         {
-            RawScreen = new ConsoleArray(xsize, ysize);
+            RawScreen = new ConsoleArray(s);
         }
         public void AddChar(char c)
         {
+
         }
     }
 
     public static class Master
     {
-        public static ConsoleArray Screen = new ConsoleArray(Console.WindowWidth,Console.WindowHeight);
+        public static ConsoleArray Screen = new ConsoleArray(new Size2d(Console.WindowWidth,Console.WindowHeight));
     }
 }
