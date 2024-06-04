@@ -15,8 +15,7 @@ namespace NTUI
 
         public static void Test()
         {
-            Console.WriteLine(Console.WindowHeight);
-            Console.WriteLine(Console.WindowWidth);
+            
 
             Console.ReadKey();
         }
@@ -63,19 +62,17 @@ namespace NTUI
     {
         private bool isempty;
         private char character;
-        public ConsoleColor ForegroundColour = ConsoleColor.White;
-        public ConsoleColor BackgroundColour = ConsoleColor.Black;
+        public ConsoleFormatSet Format;
         public WriteableCharacter(char character)
         {
             this.character = character;
             isempty = false;
         }
-        public WriteableCharacter(char character,ConsoleColor f,ConsoleColor b)
+        public WriteableCharacter(char character,ConsoleFormatSet format)
         {
             this.character= character;
             isempty = false;
-            this.BackgroundColour = b;
-            this.ForegroundColour = f;
+            this.Format = format;
         }
         private WriteableCharacter(bool ia) {
             this.isempty = ia;
@@ -94,14 +91,8 @@ namespace NTUI
         }
         public void PrintAt(Position p)
         {
-            ConsoleColor oldbg = Console.BackgroundColor;
-            ConsoleColor oldfg = Console.ForegroundColor;
             Console.CursorLeft = p.x; Console.CursorTop = p.y;
-            Console.BackgroundColor = BackgroundColour;
-            Console.ForegroundColor = ForegroundColour;
             Console.Write(GetChar());
-            Console.ForegroundColor = oldfg;
-            Console.BackgroundColor= oldbg;
         }
         public static WriteableCharacter Empty()
         {
@@ -149,14 +140,140 @@ namespace NTUI
         {
             RawScreen = new ConsoleArray(s);
         }
+        public void AddChar(char c,ConsoleFormatSet f)
+        {
+            RawScreen.Set(Utilities.GetCursor(), new WriteableCharacter(c,f));
+        }
+
         public void AddChar(char c)
         {
+            AddChar(c, ConsoleFormatSet.None);
+        }
+        public void AddString(string s,ConsoleFormatSet f)
+        {
 
+        }
+    }
+
+    public class ConsoleFormatSet
+    {
+        public ConsoleColor ForegroundColour;
+        public ConsoleColor BackgroundColour;
+
+        public bool IsActive = true;//If false, will be skipped
+
+        public bool IsBlink = false;
+        public bool IsBold = false;
+        public bool IsItalic = false;
+        public bool IsUnderline = false;
+        public bool IsStrikethrough = false;
+        public bool IsFaint = false;
+        public bool IsInvert = false;
+        public ConsoleFormatSet() { }
+        public string ToPrefix()
+        {
+            if (!IsActive)
+            {
+                return "";
+            }
+            ///<summary>Get an ANSI prefix excluding colours to be printed</summary>
+            string tr = "";
+            if (IsBlink)
+            {
+                tr += Constants.ANSIESCAPE + "5m";
+            }
+            if (IsBold)
+            {
+                tr += Constants.ANSIESCAPE + "1m";
+            }
+            if (IsItalic)
+            {
+                tr += Constants.ANSIESCAPE + "3m";
+            }
+            if (IsUnderline)
+            {
+                tr += Constants.ANSIESCAPE + "4m";
+            }
+            if (IsStrikethrough)
+            {
+                tr += Constants.ANSIESCAPE + "9m";
+            }
+            if (IsFaint)
+            {
+                tr += Constants.ANSIESCAPE + "2m";
+            }
+            if (IsInvert)
+            {
+                tr += Constants.ANSIESCAPE + "7m";
+            }
+            return tr;
+        }
+        public static ConsoleFormatSet None = new ConsoleFormatSet()//This is an empty one designed to be used with default values
+        {
+            IsActive = false
+        };
+        public string ToSuffix()
+        {
+            if (!IsActive)
+            {
+                return "";
+            }
+            string tr = "";
+            if (IsBlink || IsBold || IsItalic || IsUnderline || IsStrikethrough || IsFaint || IsInvert)
+            {
+                tr = Constants.ANSIESCAPE + "0m";
+            }
+            return tr;
+        }
+        public string GetPrintableChar(char c)
+        {
+            return $"{ToPrefix()}{c}{ToSuffix()}";
+        }
+        public void ExecutePrint(char c,Position p)
+        {
+            Console.CursorTop = p.y; Console.CursorLeft = p.x;
+            if (IsActive)
+            {
+                ConsoleColor ofg = Console.ForegroundColor;
+                ConsoleColor obg = Console.BackgroundColor;
+                Console.ForegroundColor = ForegroundColour;
+                Console.BackgroundColor = BackgroundColour;
+                Console.Write(GetPrintableChar(c));
+                Console.ForegroundColor = ofg;
+                Console.BackgroundColor = obg;
+            } else
+            {
+                Console.Write(c);
+            }
         }
     }
 
     public static class Master
     {
         public static ConsoleArray Screen = new ConsoleArray(new Size2d(Console.WindowWidth,Console.WindowHeight));
+        public static Dictionary<int,ConsoleFormatSet> Formats = new Dictionary<int,ConsoleFormatSet>();
+        
+    }
+    public static class Utilities
+    {
+        public static Position GetCursor()
+        {
+            return new Position(Console.CursorLeft, Console.CursorTop);
+        }
+    }
+    public static class Constants
+    {
+        public static readonly string ANSIESCAPE = "\x1b[";
+    }
+    public static class Colours
+    {
+        public static ConsoleFormatSet Get(int id)
+        {
+            return Master.Formats[id];
+        }
+        public static void AddFormat(int id, ConsoleFormatSet format)
+        {
+            Master.Formats[id] = format;
+        }
     }
 }
