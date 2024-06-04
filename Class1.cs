@@ -18,9 +18,12 @@ namespace NTUI
         public static void Test()
         {
             var window = Master.Screen;
-            window.AddString("Hello, World!");
+            window.AddString("Hello, World!", new Position(0,0));
             window.UpdateScreen(UpdateTypes.FullRewrite);
 
+            Console.ReadKey();
+            window.AddString("Goodbye", new Position(0, 2));
+            window.UpdateScreen(UpdateTypes.SmartRewrite);
             Console.ReadKey();
         }
     }
@@ -71,6 +74,7 @@ namespace NTUI
         {
             this.character = character;
             isempty = false;
+            this.Format = ConsoleFormatSet.None;
         }
         public WriteableCharacter(char character,ConsoleFormatSet format)
         {
@@ -104,6 +108,7 @@ namespace NTUI
                 return;
             }
             Format.ExecutePrint(GetRawChar(), p);
+                
         }
         public static WriteableCharacter Empty()
         {
@@ -114,6 +119,7 @@ namespace NTUI
     {
         public WriteableCharacter[][] RawArray;
         public Size2d Size;
+        private Position pointer = new Position(0,0);
         public ConsoleArray (Size2d size)
         {
             this.Size = size;
@@ -125,6 +131,7 @@ namespace NTUI
                 for (int y = 0; y < ysize; y++)
                 {
                     RawArray[x][y] = WriteableCharacter.Empty();
+                    //RawArray[x][y] = new WriteableCharacter('#');
                 }
             }
         }
@@ -141,6 +148,17 @@ namespace NTUI
         {
             Set(p.x,p.y,d);
         }
+        public void AddToEnd(WriteableCharacter d)
+        {
+            pointer.x++;
+            if (pointer.x > RawArray.Length)
+            {
+                pointer.x = 0;
+                pointer.y++;
+            }
+            Set(pointer, d);
+        }
+        
     }
 
     public enum UpdateTypes
@@ -161,7 +179,7 @@ namespace NTUI
         internal ConsoleScreen() { }//DO NOT USE
         public void AddChar(char c,ConsoleFormatSet f)
         {
-            RawScreen.Set(Utilities.GetCursor(), new WriteableCharacter(c,f));
+            RawScreen.AddToEnd(new WriteableCharacter(c,f));
         }
         public void AddChar(char c,Position p,ConsoleFormatSet f)
         {
@@ -201,11 +219,16 @@ namespace NTUI
         {
             AddString(s,p,ConsoleFormatSet.None);
         }
+        public void UpdateScreen()
+        {
+            UpdateScreen(UpdateTypes.SmartRewrite);//Writing a console is slower than manually comparing.
+        }
         public void UpdateScreen(UpdateTypes method)
         {
-            Console.Clear();
+            
             if (method == UpdateTypes.FullRewrite)
             {
+                Console.Clear();
                 foreach (WriteableCharacter[] x in RawScreen.RawArray)
                 {
                     foreach (WriteableCharacter y in x)
