@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,7 +17,8 @@ namespace NTUI
 
         public static void Test()
         {
-            
+            var window = Master.Screen;
+            window.AddString("Hello, World!");
 
             Console.ReadKey();
         }
@@ -85,73 +88,152 @@ namespace NTUI
         {
             return character.ToString();
         }
-        public char GetChar()
+        public char GetRawChar()
         {
             return character;
         }
+        public string GetFormattedChar()
+        {
+            return Format.GetPrintableChar(GetRawChar());
+        }
         public void PrintAt(Position p)
         {
-            Console.CursorLeft = p.x; Console.CursorTop = p.y;
-            Console.Write(GetChar());
+            Format.ExecutePrint(GetRawChar(), p);
         }
         public static WriteableCharacter Empty()
         {
             return new WriteableCharacter(true);//Only local can access
         }
     }
-    public class ConsoleArray
+    internal class ConsoleArray
     {
-        private WriteableCharacter[][] raw;
+        public WriteableCharacter[][] RawArray;
         public Size2d Size;
         public ConsoleArray (Size2d size)
         {
             this.Size = size;
             int xsize = size.x; int ysize = size.y;
-            raw = new WriteableCharacter[xsize][];
+            RawArray = new WriteableCharacter[xsize][];
             for (int x = 0; x < xsize; x++)
             {
-                raw[x] = new WriteableCharacter[ysize];
+                RawArray[x] = new WriteableCharacter[ysize];
                 for (int y = 0; y < ysize; y++)
                 {
-                    raw[x][y] = WriteableCharacter.Empty();
+                    RawArray[x][y] = WriteableCharacter.Empty();
                 }
             }
         }
         public WriteableCharacter Get(int x,int y)
         {
-            return raw[x][y];
+            return RawArray[x][y];
         }
         public WriteableCharacter Get(Position p)
         {
             return Get(p.x,p.y);
         }
-        public void Set(int x,int y,WriteableCharacter d) { raw[x][y] = d;}
+        public void Set(int x,int y,WriteableCharacter d) { RawArray[x][y] = d;}
         public void Set(Position p, WriteableCharacter d)
         {
             Set(p.x,p.y,d);
         }
+        public System.Collections.Generic.IEnumerator<WriteableCharacter[]> GetEnumerator()
+        {
+            return (IEnumerator<WriteableCharacter[]>)RawArray.GetEnumerator();//Pass it on to ze child! - The russian doctor 2023
+        }
+    }
+
+    public enum UpdateTypes
+    {
+        FullRewrite,SmartRewrite
     }
 
     public class ConsoleScreen
     {
         private ConsoleArray RawScreen;
+        private ConsoleArray LastUpdate;
 
         public ConsoleScreen(Size2d s)
         {
             RawScreen = new ConsoleArray(s);
+            LastUpdate = new ConsoleArray(s);
         }
         public void AddChar(char c,ConsoleFormatSet f)
         {
             RawScreen.Set(Utilities.GetCursor(), new WriteableCharacter(c,f));
+        }
+        public void AddChar(char c,Position p,ConsoleFormatSet f)
+        {
+            RawScreen.Set(p,new WriteableCharacter(c,f));
+        }
+        public void AddChar(char c,Position p)
+        {
+            AddChar(c, p, ConsoleFormatSet.None);
         }
 
         public void AddChar(char c)
         {
             AddChar(c, ConsoleFormatSet.None);
         }
+        
         public void AddString(string s,ConsoleFormatSet f)
         {
-
+            foreach (char c in s.ToCharArray())
+            {
+                AddChar(c, f);
+            }
+        }
+        public void AddString(string s)
+        {
+            AddString(s,ConsoleFormatSet.None);
+        }
+        public void AddString(string s,Position p, ConsoleFormatSet f)
+        {
+            
+            foreach (char c in s.ToCharArray())
+            {
+                AddChar(c ,p,f);
+                p.x++;
+            }
+        }
+        public void AddString(string s,Position p)
+        {
+            AddString(s,p,ConsoleFormatSet.None);
+        }
+        public void UpdateScreen(UpdateTypes method)
+        {
+            Console.Clear();
+            if (method == UpdateTypes.FullRewrite)
+            {
+                foreach (WriteableCharacter[] x in RawScreen)
+                {
+                    foreach (WriteableCharacter y in x)
+                    {
+                        y.PrintAt(new Position(Console.CursorLeft, Console.CursorTop));
+                    }
+                }
+            } else if (method == UpdateTypes.SmartRewrite)
+            {
+                int yi = 0;
+                int xi = 0;
+                foreach (WriteableCharacter[] x in RawScreen)
+                {
+                    foreach (WriteableCharacter y in x)
+                    {
+                        if (!(LastUpdate.RawArray[xi][yi] == y))
+                        {
+                            y.PrintAt(new Position(xi, yi));
+                        }
+                        yi++;
+                    }
+                    xi++;
+                    yi = 0;
+                }
+            }
+            this.LastUpdate = (ConsoleArray)Utilities.CopyObject(this.RawScreen);
+        }
+        internal static ConsoleScreen NewFullscreen()
+        {
+            return new ConsoleScreen(new Size2d(Console.WindowWidth, Console.WindowHeight));
         }
     }
 
@@ -250,7 +332,8 @@ namespace NTUI
 
     public static class Master
     {
-        public static ConsoleArray Screen = new ConsoleArray(new Size2d(Console.WindowWidth,Console.WindowHeight));
+        //public static ConsoleArray Screen = new ConsoleArray(new Size2d(Console.WindowWidth,Console.WindowHeight));
+        public static ConsoleScreen Screen = ConsoleScreen.NewFullscreen();
         public static Dictionary<int,ConsoleFormatSet> Formats = new Dictionary<int,ConsoleFormatSet>();
         
     }
@@ -259,6 +342,36 @@ namespace NTUI
         public static Position GetCursor()
         {
             return new Position(Console.CursorLeft, Console.CursorTop);
+        }
+        internal static object CopyObject(object input)
+        {
+            if (input != null)
+            {
+                object result = Activator.CreateInstance(input.GetType());
+                foreach (FieldInfo field in input.GetType().GetFields())
+                {
+                    if (field.FieldType.GetInterface("IList", false) == null)
+                    {
+                        field.SetValue(result, field.GetValue(input));
+                    }
+                    else
+                    {
+                        IList listObject = (IList)field.GetValue(result);
+                        if (listObject != null)
+                        {
+                            foreach (object item in ((IList)field.GetValue(input)))
+                            {
+                                listObject.Add(CopyObject(item));
+                            }
+                        }
+                    }
+                }
+                return result;
+            }
+            else
+            {
+                return null;
+            }
         }
     }
     public static class Constants
