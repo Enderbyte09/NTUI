@@ -19,6 +19,7 @@ namespace NTUI
         {
             var window = Master.Screen;
             window.AddString("Hello, World!");
+            window.UpdateScreen(UpdateTypes.FullRewrite);
 
             Console.ReadKey();
         }
@@ -98,6 +99,10 @@ namespace NTUI
         }
         public void PrintAt(Position p)
         {
+            if (isempty)
+            {
+                return;
+            }
             Format.ExecutePrint(GetRawChar(), p);
         }
         public static WriteableCharacter Empty()
@@ -136,10 +141,6 @@ namespace NTUI
         {
             Set(p.x,p.y,d);
         }
-        public System.Collections.Generic.IEnumerator<WriteableCharacter[]> GetEnumerator()
-        {
-            return (IEnumerator<WriteableCharacter[]>)RawArray.GetEnumerator();//Pass it on to ze child! - The russian doctor 2023
-        }
     }
 
     public enum UpdateTypes
@@ -157,6 +158,7 @@ namespace NTUI
             RawScreen = new ConsoleArray(s);
             LastUpdate = new ConsoleArray(s);
         }
+        internal ConsoleScreen() { }//DO NOT USE
         public void AddChar(char c,ConsoleFormatSet f)
         {
             RawScreen.Set(Utilities.GetCursor(), new WriteableCharacter(c,f));
@@ -204,7 +206,7 @@ namespace NTUI
             Console.Clear();
             if (method == UpdateTypes.FullRewrite)
             {
-                foreach (WriteableCharacter[] x in RawScreen)
+                foreach (WriteableCharacter[] x in RawScreen.RawArray)
                 {
                     foreach (WriteableCharacter y in x)
                     {
@@ -215,7 +217,7 @@ namespace NTUI
             {
                 int yi = 0;
                 int xi = 0;
-                foreach (WriteableCharacter[] x in RawScreen)
+                foreach (WriteableCharacter[] x in RawScreen.RawArray)
                 {
                     foreach (WriteableCharacter y in x)
                     {
@@ -229,7 +231,7 @@ namespace NTUI
                     yi = 0;
                 }
             }
-            this.LastUpdate = (ConsoleArray)Utilities.CopyObject(this.RawScreen);
+            //this.LastUpdate = (ConsoleArray)Utilities.CopyObject(this.RawScreen);
         }
         internal static ConsoleScreen NewFullscreen()
         {
